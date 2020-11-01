@@ -1,9 +1,3 @@
-
-
-
-
-
-
 Network Working Group                                   Steve Crocker
 Request for Comments: 1                                          UCLA
                                                          7 April 1969
