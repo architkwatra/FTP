@@ -1,6 +1,7 @@
-## iSnap feature extension
-For the iSnap project (frontend of the whole project), the following files are created:
-  - **isnap/hints/example-display.js**
+## iSnap Examples Documentation
+For the behavior examples in iSnap project, there are 2 major JS files - renderGifs.js and behavior.js - and one css file. Some of the functionality is added to proactive-example-display.js file as well. Below is the description and some relevant details for the files: 
+
+  - **isnap/behavior/renderGifs.js**
 
     -- *ExampleDisplay* is created for the display of example fetched from server based on the current code. The proccess of generating example based on the current code is implemented in the backend. A button labelled "Show Examples" is added to the navigation bar. When clicked, a POST xhr request will be sent to the server asking for the example.
 
