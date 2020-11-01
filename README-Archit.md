@@ -8,5 +8,3 @@ For the behavior examples in iSnap project, there are 2 major JS files - renderG
   - **isnap/behavior/behavior.js**
 
       -- This file contains the logic for the transition from gallery to the overlay (small window on the right corner) and vice-versa. The function *addClickToGifs* handles the tranisitions for both - gallery to overlay and overlay to gallery. The two functions *galleryToOverlayTransitionFunction* and *overlayToGalleryTransitionFunctions* handle the transitions. Whenever the transition occurs from gallery to overlay, the unnecessary HTML elements are either removed or hidden. Similarly, when the opposite transition occurs i.e. from overlay to gallery, the required elements are added again or shown respectively.
-
-Yudong RAO , April 28, 2019
