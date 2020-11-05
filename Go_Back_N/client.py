@@ -1,8 +1,8 @@
-
 from socket import socket, AF_INET, SOCK_DGRAM
 import sys
 from threading import Thread
 import multiprocessing
+from multiprocessing import *
 from datetime import datetime
 from signal import alarm, signal, setitimer, SIGALRM, ITIMER_REAL
 import pickle
@@ -14,28 +14,42 @@ SENDER_HOST = SENDER_PORT = ""
 maxSequenceNumber = 0
 lastAckPacket = -1
 BUFFER = {}
+timerStart = timerEnd = 0
 slidingWindow = set()
 lastSentPacket = -1
-thread_lock = multiprocessing.Lock()
+lock = Lock()
 CLIENT_SOCKET = socket(AF_INET, SOCK_DGRAM)
-
 sent = False
-timer_start = timer_end = 0
+EOF_data = ("0", "0", TYPE_EOF, "0")
 
-def calculate_checksum(data):
+TYPE_EOF = "1111111111111111"
+ACK_HOST = '0.0.0.0'
+TYPE_DATA = "0101010101010101"
+TYPE_ACK = "1010101010101010"
+ACK_PORT = 23000
+RTT = 0.1
+
+def shift(num ,nBits, d = "l"):
+    if d == "r":
+        return (num >> nBits)
+    return (num << nBits)
+
+def calculate_checksum(segment):
     checksum = 0
     i = 0
     while True:
-        if i >= len(data):
+        if i >= len(segment):
             break
-        firstByte = ord(data[i])
+        firstByte = ord(segment[i])
         secondByte = 0xffff
-        if i+1 < len(data): 
-            secondByte = ord(data[i+1])
-        temp = checksum + (firstByte << 8) + secondByte
-        checksum = (temp & 0xffff) + (temp >> 16)
+        if i+1 < len(segment): 
+            secondByte = ord(segment[i+1])
+        temp = checksum + shift(firstByte, 8) + secondByte
+        checksum = (temp & 0xffff) + shift(temp, 16, "r")
         i+=2
-    return (checksum ^ 0xffff)
+    ret = (checksum ^ 0xffff)
+    # print(ret)
+    return ret
 
 def setAlarmAndTimer():
     alarm(0)
@@ -43,149 +57,143 @@ def setAlarmAndTimer():
     
 def handler(timeout_th, frame):
     global lastAckPacket, SENDER_HOST, SENDER_PORT
-    senderInfo = (SENDER_HOST, SENDER_PORT)
+    hostInfo = (SENDER_HOST, SENDER_PORT)
     n = len(slidingWindow)
     if lastAckPacket == lastSentPacket - n:
-        print("Timeout enclountered for sequence number = ", lastAckPacket + 1)
-        thread_lock.acquire()
+        print("OOPS, TIMEOUT!! sequence number = ", lastAckPacket + 1)
+        lock.acquire()
         temp = lastAckPacket+1
         i = temp
-        while i < temp+n:
-        # for i in range(temp, temp + n):
-
-            # alarm(0)
-            # setitimer(ITIMER_REAL, RTT)
+        while True:
+            if i >= temp+n: 
+                break
             setAlarmAndTimer()
-
-            packet = None
             if i in BUFFER:
-                packet = BUFFER[i]
-                CLIENT_SOCKET.sendto(packet, senderInfo)
-                
+                CLIENT_SOCKET.sendto(BUFFER[i], hostInfo)
             i += 1
-        thread_lock.release()
+        lock.release()
             
-
 def setSocket():
     ACK_SOCKET = socket(AF_INET, SOCK_DGRAM)
     ACK_SOCKET.bind((ACK_HOST, ACK_PORT))
     return ACK_SOCKET
 
-
 def deleteAck(lastAckPacket):
-    slidingWindow.remove(lastAckPacket)
-    BUFFER.pop(lastAckPacket)
+    if lastAckPacket in slidingWindow:
+        slidingWindow.remove(lastAckPacket)
+    if lastAckPacket in BUFFER:
+        del BUFFER[lastAckPacket]
+    # BUFFER.pop(lastAckPacket)
 
-def ack_process(N, SENDER_HOST, SENDER_PORT):
-    global lastAckPacket, lastSentPacket, sent, timer_end, timer_start, slidingWindow, BUFFER
-    # ACK_SOCKET = socket(AF_INET, SOCK_DGRAM)
-    # ACK_SOCKET.bind((ACK_HOST, ACK_PORT))
+def getAndPrintTotoalTime(timerStart):
+    timerEnd = datetime.now()
+    total_time = timerEnd - timerStart
+    print("total time = ", total_time) #   total_time
+
+def runThreadProcess(N, SENDER_HOST, SENDER_PORT):
+    global EOF_data, lastAckPacket, lastSentPacket, sent, timerEnd, timerStart, slidingWindow, BUFFER
     ACK_SOCKET = setSocket()
-
-    while True:
+    check = True
+    hostInfo = (SENDER_HOST, SENDER_PORT)
+    while check:
         # recv is a blocking call
-        # change 65535 to 4096 for best usage
-        recievedPacket = ACK_SOCKET.recv(65535)
+        # change 65535 to 4096 for best usage         
+        recievedPacket = ACK_SOCKET.recv(4096)
         reply = pickle.loads(recievedPacket)
-        # sequenceNumber, padding, reply_type = reply
         if reply[2] == TYPE_ACK:
             # extracting the last packet seq that was delivered successfully
             curAckSeqNum = reply[0] - 1
-            if lastAckPacket >= 0:
-                thread_lock.acquire()
+            if lastAckPacket >= -1:
+                lock.acquire()
             
             # End of file
             if curAckSeqNum == maxSequenceNumber:
-                CLIENT_SOCKET.sendto(pickle.dumps(("0", "0", TYPE_EOF, "0")), (SEND_HOST, SEND_PORT))
-                thread_lock.release()
+                temp = pickle.dumps(EOF_data)
+                CLIENT_SOCKET.sendto(temp, hostInfo)
+                lock.release()
                 sent = True
-                # timer_end = datetime.now()
-                # total_time = datetime.now() - timer_start
-                print("total time = ", datetime.now() - timer_start) #   total_time
+                getAndPrintTotoalTime(timerStart)
+                check = False
                 break
             
             elif curAckSeqNum > lastAckPacket:
                 while lastAckPacket < curAckSeqNum:
-                    # alarm(0)
-                    # setitimer(ITIMER_REAL, RTT)
                     setAlarmAndTimer()
-
                     lastAckPacket += 1
                     deleteAck(lastAckPacket)
-
-                    while len(slidingWindow) < min(len(BUFFER), N):
+                    while True:
+                        mVal = min(len(BUFFER), N)
+                        if mVal <= len(slidingWindow):
+                            break
                         if lastSentPacket < maxSequenceNumber:
-                            packet = BUFFER.get(lastSentPacket+1)
-                            CLIENT_SOCKET.sendto(packet, (SENDER_HOST, SENDER_PORT))
+                            segment = ""
+                            key = lastSentPacket+1
+                            segment = BUFFER.get(key)
+                            CLIENT_SOCKET.sendto(segment, hostInfo)
                             slidingWindow.add(lastSentPacket + 1)
                             lastSentPacket += 1
-                thread_lock.release()
+                        
+                        
+                lock.release()
             else:
-                thread_lock.release()
+                lock.release()
+            
+            
 
             
-def rdt_send(N, SEND_HOST, SEND_PORT):
-    global lastSentPacket, lastAckPacket, slidingWindow,client_buffer, t_start
+def rdt_send(N, SENDER_HOST, SENDER_PORT):
+    
+    global lastSentPacket, lastAckPacket, slidingWindow, BUFFER, timerStart
+    hostInfo = (SENDER_HOST, SENDER_PORT)
+    timerStart = datetime.now()
+    bufferSize = len(BUFFER)
 
-    t_start = datetime.now()
-    size_client_buffer = len(BUFFER)
-
-    while len(slidingWindow) < min(size_client_buffer, N):
+    while len(slidingWindow) < min(bufferSize, N):
         if lastAckPacket == -1:
             packet = BUFFER.get(lastSentPacket + 1)
-            CLIENT_SOCKET.sendto(packet, (SEND_HOST, SEND_PORT))
-            
-            # alarm(0)
-            # setitimer(ITIMER_REAL, RTT)
+            CLIENT_SOCKET.sendto(packet, hostInfo)
             setAlarmAndTimer()
-
             lastSentPacket += 1
             slidingWindow.add(lastSentPacket)
 
-
-
 if __name__ == "__main__":
 
-    sequence_number = 0
-    print(sys.argv)
-    if len(sys.argv) < 6:
-        print("Please enter the following:")
-        print("1. Server IP address 2. Server Port Number 3. File Name 4. Window Size 5. MSS Value")
-
+    def dumpPickle(data):
+        return pickle.dumps(data)
+        
+    if len(sys.argv) != 6:
+        print("Please input the following as arguments")
+        print('1. Server IP address 2. Server Port Number 3. File Name 4. Window Size 5. MSS Value')
     else:
         SENDER_HOST = sys.argv[1]
-        SENDER_PORT = int(sys.argv[2]) 
+        SENDER_PORT = int(sys.argv[2])
         FILE_NAME = sys.argv[3] 
-        N = int(sys.argv[4]) 
-        MSS =  int(sys.argv[5])
-        # try:
-        # rb mode means read binary mode 
-        with open(FILE_NAME, 'rb') as f:
-            while True:
-                chunk = f.read(MSS)
-                if chunk:
-                    maxSequenceNumber = sequence_number
-                    #get the checksum for the chunk
-                    chunk_checksum = calculate_checksum(str(chunk))
-                    BUFFER[sequence_number] = pickle.dumps([sequence_number, chunk_checksum, TYPE_DATA, chunk])
-                    sequence_number += 1
-                break
-        # except Exception as e:
-        #     print("XXXXXX", e)
-        #     sys.exit("Please check the below error")
-            
+        N = int(sys.argv[4])
+        MSS = int(sys.argv[5])
+        sequenceNumber = 0
+        try:
+            with open(FILE_NAME, 'rb') as f:
+                while True:
+                    segment = f.read(MSS)
+                    if not segment:
+                        break
+                    else:
+                        maxSequenceNumber = sequenceNumber
+                        BUFFER[sequenceNumber] = dumpPickle([sequenceNumber, calculate_checksum(str(segment)), TYPE_DATA, segment])
+                        sequenceNumber += 1
+        except Exception as e:
+            print(e)
+            sys.exit("Failed to open file!")
 
-        # handler is a custom handler when the signal is recieved
-        # The signal.signal() function allows defining custom handlers to 
-        # be executed when a signal is received
         signal(SIGALRM, handler)
-        ack_thread = Thread(target=ack_process, args = (N, SENDER_HOST, SENDER_PORT))
+        ack_thread = Thread(target=runThreadProcess, args=(N, SENDER_HOST, SENDER_PORT,))
         ack_thread.start()
-        rdt_send(N, SENDER_HOST,SENDER_PORT)
-
+        rdt_send(N, SENDER_HOST, SENDER_PORT)
         while not sent:
-            i = 0
-            # spinning
+            # spin
+            i = 2
+
+        # Block the calling thread until the process whose join() method is called 
+        # terminates or until the optional timeout occurs.
         ack_thread.join()
         CLIENT_SOCKET.close()
-
