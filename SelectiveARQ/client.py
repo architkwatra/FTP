@@ -68,7 +68,7 @@ def ack_process(N, SEND_HOST, SEND_PORT):
         sequence_no, padding, type = reply
         if type == TYPE_ACK:
             current_ack_seq_number = sequence_no - 1
-            print "Received ACK, sequence number = " + str(current_ack_seq_number)
+            print ("Received ACK, sequence number = " + str(current_ack_seq_number))
             if last_ack_packet >= -1:
                 thread_lock.acquire()
 
@@ -111,7 +111,7 @@ def ack_process(N, SEND_HOST, SEND_PORT):
 def timeout_thread(timeout_th, frame):
     global last_ack_packet
     if last_ack_packet == last_send_packet - len(sliding_window):
-        print "Timeout, sequence number = " + str(last_ack_packet + 1)
+        print("Timeout, sequence number = " + str(last_ack_packet + 1))
         thread_lock.acquire()
         alarm(0)
         setitimer(ITIMER_REAL, RTT)
@@ -123,8 +123,7 @@ def timeout_thread(timeout_th, frame):
 
 if __name__ == "__main__":
     if len(sys.argv) < 6:
-        print(
-            'Need 5 arguments: 1) Server IP address 2) Server Port Number 3) File Name 4) Window Size 5) MSS Value')
+        print('Need 5 arguments: 1) Server IP address 2) Server Port Number 3) File Name 4) Window Size 5) MSS Value')
     else:
         SEND_HOST, SEND_PORT, FILE_NAME, N, MSS = sys.argv[1], int(sys.argv[2]), sys.argv[3], int(sys.argv[4]), int(
             sys.argv[5])

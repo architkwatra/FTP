@@ -10,6 +10,7 @@ last_received_packet=-1
 
 
 def compute_checksum_for_chuck(chunk,checksum):
+    chunk = str(chunk)
     for byte in range(0, len(chunk), 2):
         byte1 = ord(chunk[byte])
         if byte+1 < len(chunk):
@@ -86,7 +87,7 @@ def main(PACKET_LOSS_PROB, window_minimum, window_maximum, server_window_buffer)
 
 if __name__ == "__main__":
     if len(sys.argv) < 5:
-        print('Need 4 arguments: 1) Server Port Number 2) File Name 3) MSS Value 4) Window Size')
+        print('Need 4 arguments: 1) Server Port Number 2) File Name 3) probability 4) MSS Value')
     else:
         SERVER_PORT, FILE_NAME, PACKET_LOSS_PROB, N = int(sys.argv[1]), sys.argv[2], float(sys.argv[3]), int(sys.argv[4])
         server_socket = socket(AF_INET, SOCK_DGRAM)
