@@ -95,6 +95,17 @@ class Client:
         recievedPacket = ACK_SOCKET.recv(4096)
         return pickle.loads(recievedPacket)
 
+    def extractAndSend(self, isRdtSend = False):
+        global lastSentPacket, slidingWindow, BUFFER
+        hostInfo = (SENDER_HOST, SENDER_PORT)
+        segment = 0
+        lastSentPacket += 1
+        segment = BUFFER[lastSentPacket]
+        CLIENT_SOCKET.sendto(segment, hostInfo)
+        if isRdtSend:
+            self.setAlarmAndTimer()
+        slidingWindow.add(lastSentPacket)
+
     def runThreadProcess(self, N, SENDER_HOST, SENDER_PORT):
         global EOF_data, lastAckPacket, lastSentPacket, sent, timerEnd, timerStart, slidingWindow, BUFFER
         ACK_SOCKET = self.setSocket()
@@ -109,7 +120,7 @@ class Client:
                     lock.acquire()
                 # End of file
                 if curAckSeqNum == maxSequenceNumber:
-                    temp = pickle.dumps(EOF_data)
+                    temp = dumpPickle(EOF_data)
                     CLIENT_SOCKET.sendto(temp, hostInfo)
                     lock.release()
                     sent = True
@@ -127,12 +138,7 @@ class Client:
                             if mVal <= len(slidingWindow):
                                 break
                             if lastSentPacket < maxSequenceNumber:
-                                segment = ""
-                                key = lastSentPacket+1
-                                segment = BUFFER[key]
-                                CLIENT_SOCKET.sendto(segment, hostInfo)
-                                lastSentPacket += 1
-                                slidingWindow.add(lastSentPacket)
+                                self.extractAndSend(True)
                                 
                     lock.release()
                 else:
@@ -141,19 +147,13 @@ class Client:
     def rdt_send(self, N, SENDER_HOST, SENDER_PORT):
         
         global lastSentPacket, lastAckPacket, slidingWindow, BUFFER, timerStart
-        hostInfo = (SENDER_HOST, SENDER_PORT)
+        # hostInfo = (SENDER_HOST, SENDER_PORT)
         timerStart = datetime.now()
         bufferSize = len(BUFFER)
         l = min(bufferSize, N)
         while len(slidingWindow) < l:
             if lastAckPacket == -1:
-                packet = 0
-                if BUFFER:
-                    packet = BUFFER[lastSentPacket + 1]
-                CLIENT_SOCKET.sendto(packet, hostInfo)
-                self.setAlarmAndTimer()
-                lastSentPacket += 1
-                slidingWindow.add(lastSentPacket)
+                self.extractAndSend(True)
 
 if __name__ == "__main__":
 
@@ -163,38 +163,40 @@ if __name__ == "__main__":
     if len(sys.argv) != 6:
         print("Please input the following as arguments")
         print('1. Server IP address 2. Server Port Number 3. File Name 4. Window Size 5. MSS Value')
-    else:
-        SENDER_HOST = sys.argv[1]
-        SENDER_PORT = int(sys.argv[2])
-        FILE_NAME = sys.argv[3] 
-        N = int(sys.argv[4])
-        MSS = int(sys.argv[5])
-        client = Client()
-        sequenceNumber = 0
-        try:
-            with open(FILE_NAME, 'rb') as f:
-                while True:
-                    segment = f.read(MSS)
-                    if not segment:
-                        break
-                    else:
-                        maxSequenceNumber = sequenceNumber
-                        BUFFER[sequenceNumber] = dumpPickle([sequenceNumber, client.calculateChecksum(str(segment)), TYPE_DATA, segment])
-                        sequenceNumber += 1
-        except Exception as e:
-            print(e)
-            sys.exit("Failed to open file!")
+        sys.exit()
 
-        
-        signal(SIGALRM, client.handler)
-        ack_thread = Thread(target=client.runThreadProcess, args=(N, SENDER_HOST, SENDER_PORT,))
-        ack_thread.start()
-        client.rdt_send(N, SENDER_HOST, SENDER_PORT)
-        while not sent:
-            # spin
-            i = 2
+    sequenceNumber = 0
+    SENDER_HOST = sys.argv[1]
+    SENDER_PORT = int(sys.argv[2])
+    FILE_NAME = sys.argv[3] 
+    N = int(sys.argv[4])
+    MSS = int(sys.argv[5])
+    client = Client()
+    
+    try:
+        with open(FILE_NAME, 'rb') as f:
+            while True:
+                segment = f.read(MSS)
+                if not segment:
+                    break
+                else:
+                    maxSequenceNumber = sequenceNumber
+                    BUFFER[sequenceNumber] = dumpPickle([sequenceNumber, client.calculateChecksum(str(segment)), TYPE_DATA, segment])
+                    sequenceNumber += 1
+    except Exception as e:
+        print(e)
+        sys.exit("Failed to open file!")
 
-        # Block the calling thread until the process whose join() method is called 
-        # terminates or until the optional timeout occurs.
-        ack_thread.join()
-        CLIENT_SOCKET.close()
+    
+    signal(SIGALRM, client.handler)
+    ack_thread = Thread(target = client.runThreadProcess, args = (N, SENDER_HOST, SENDER_PORT,))
+    ack_thread.start()
+    client.rdt_send(N, SENDER_HOST, SENDER_PORT)
+    while not sent:
+        # spin
+        i = 2
+
+    # Block the calling thread until the process whose join() method is called 
+    # terminates or until the optional timeout occurs.
+    ack_thread.join()
+    CLIENT_SOCKET.close()

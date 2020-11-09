@@ -41,6 +41,7 @@ def send_negative_acknowledgement(packet_sequence_number, ACK_HOST_NAME):
 def main(PACKET_LOSS_PROB, window_minimum, window_maximum, server_window_buffer):
     global last_received_packet
     completed=False
+    print("Server Started")
     while not completed:
         received_data, addr = server_socket.recvfrom(65535)
         ACK_HOST_NAME = addr[0]
@@ -48,6 +49,7 @@ def main(PACKET_LOSS_PROB, window_minimum, window_maximum, server_window_buffer)
         packet_sequence_number, packet_checksum, packet_type, packet_data = received_data
         if packet_type == TYPE_EOF:
             completed=True
+            print("File transfer complete, closing server")
             server_socket.close()
         elif packet_type == TYPE_DATA:
             if random()>=PACKET_LOSS_PROB:

@@ -53,7 +53,7 @@ class Server:
     def runServer(self, PACKET_LOSS_PROB):
         lastRecPckt = -1
         done = False
-        print("server started")
+        print("Server started")
         while not done:
             receivedData, addr = SERVER_SOCKET.recvfrom(4096)
             ACK_HOST_NAME = addr[0]
@@ -80,7 +80,7 @@ class Server:
                         else: 
                             self.sendAcknowledgement(lastRecPckt + 1, ACK_HOST_NAME)
                     else:
-                        print("Packet ", seqNumber, " has been dropped due to improper checksum")
+                        print("Packet has been dropped due to improper checksum with seq no = ", seqNumber)
                 else:
                     print("Packet loss, sequence number = ", seqNumber)
 
@@ -88,13 +88,11 @@ class Server:
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         print("Please enter the following details")
-        print('1. Server Port 2. File Name 3. MSS Value')
+        print('1. Server Port 2. File Name 3. Loss probability')
     else:
         SERVER_PORT = int(sys.argv[1])
         FILE_NAME = sys.argv[2]
-        
         server = Server()
-
         SERVER_SOCKET = socket(AF_INET, SOCK_DGRAM)
         HOST_NAME = '0.0.0.0'
         SERVER_SOCKET.bind((HOST_NAME, SERVER_PORT))
