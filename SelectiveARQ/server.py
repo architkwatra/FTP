@@ -47,11 +47,13 @@ class Server:
         self.handleSocketFn(pickle.dumps((ackNumber, DATA_PAD, typee)), ACK_HOST_NAME)
 
 
-    def runServer(self, LOSS_PROB, minWindow, maxWindow, BUFFER):
-        completed=False
+    def runServer(self, LOSS_PROB, BUFFER, minWindow, maxWindow):
+        done = False
         print("Server Started")
-        while not completed:
-            recData, addr = SERVER_SOCKET.recvfrom(4096)            
+        while not done:
+            d = SERVER_SOCKET.recvfrom(4096)            
+            recData = d[0]
+            addr = d[1] 
             recData = pickle.loads(recData)
             segementSeqNumber = recData[0]
             checksum = recData[1]
@@ -59,7 +61,7 @@ class Server:
             segment = recData[3]
             ACK_HOST_NAME = addr[0]
             if segmentType == TYPE_EOF:
-                completed = True
+                done = True
                 print("File transfer complete, closing server")
                 SERVER_SOCKET.close()
             elif segmentType == TYPE_DATA:
@@ -75,16 +77,17 @@ class Server:
                                     if temp not in BUFFER:
                                         break
                                     else:
-                                        minWindow += 1
-                                        maxWindow += 1
                                         with open(FILE_NAME, 'ab') as file:
                                             file.write(segment)
+                                        minWindow += 1
+                                        maxWindow += 1
                                         BUFFER.pop(temp)
                                         temp += 1
                                 self.sendAcknowledgement(temp, ACK_HOST_NAME)
                             else:
                                 temp = minWindow
-                                while temp <= maxWindow:
+                                while True:
+                                    if temp > maxWindow: break
                                     if temp not in BUFFER:
                                         self.sendAcknowledgement(temp, ACK_HOST_NAME, True)
                                         temp += 1
@@ -92,7 +95,8 @@ class Server:
                                         break
                         elif segementSeqNumber > maxWindow:
                             temp = minWindow
-                            while temp <= maxWindow:
+                            while True:
+                                if temp > maxWindow: break
                                 self.sendAcknowledgement(temp, ACK_HOST_NAME, True)
                                 temp += 1
                 else:
@@ -102,20 +106,21 @@ if __name__ == "__main__":
     if len(sys.argv) < 5:
         print('Need 4 arguments: 1) Server Port Number 2) File Name 3) probability 4) MSS Value')
     else:
+        def setSocket():
+            SERVER_SOCKET = socket(AF_INET, SOCK_DGRAM)
+            SERVER_SOCKET.bind((HOST_NAME, SERVER_PORT))
+            return SERVER_SOCKET
+        def checkForFile(name):
+            if os.path.isfile(name):
+                os.remove(name)
+
         BUFFER = dict()
         server = Server()
         SERVER_PORT = int(sys.argv[1]) 
         FILE_NAME = sys.argv[2] 
         LOSS_PROB = float(sys.argv[3]) 
-        
         minWindow = 0
         maxWindow = int(sys.argv[4])
-
-        SERVER_SOCKET = socket(AF_INET, SOCK_DGRAM)
-        
-
-        SERVER_SOCKET.bind((HOST_NAME, SERVER_PORT))
-        if os.path.isfile(FILE_NAME):
-            os.remove(FILE_NAME)
-        
-        server.runServer(LOSS_PROB, minWindow, maxWindow, BUFFER)
+        SERVER_SOCKET = setSocket()
+        checkForFile(FILE_NAME)
+        server.runServer(LOSS_PROB, BUFFER, minWindow, maxWindow)
