@@ -1,7 +1,6 @@
 from socket import socket, AF_INET, SOCK_DGRAM
 import sys
 import pickle
-# from constants import TYPE_ACK, TYPE_DATA, TYPE_EOF, ACK_HOST, ACK_PORT, RTT, TYPE_NACK
 from signal import alarm, setitimer, SIGALRM, signal, ITIMER_REAL
 from threading import Thread
 import multiprocessing
@@ -12,11 +11,8 @@ from collections import *
 maxSeqNumber = 0
 lastAckPacket = -1
 lastSentPacket = -1
-
 SENDER_HOST = ''
 SENDER_PORT = ''
-
-
 TYPE_DATA = "0101010101010101"
 TYPE_ACK  = "0011001100110011"
 TYPE_NACK = "1100110011001100"
@@ -24,6 +20,8 @@ TYPE_EOF  = "1111111111111111"
 ACK_PORT = 23000
 ACK_HOST = '0.0.0.0'
 RTT = 0.1
+TYPE_NACK = "1100110011001100"
+TYPE_EOF  = "1111111111111111"
 EOF_data = ["0", "0", TYPE_EOF, "0"]
 
 
@@ -76,8 +74,16 @@ class Client:
 
     def extractAndSend(self, isRdtSend = False):
         global lastSentPacket, slidingWindow, BUFFER
+        
         segment = 0
         hostInfo = (SENDER_HOST, SENDER_PORT)
+        negKey = None
+        for key in BUFFER:
+            # print(key)
+            # print(values)
+            if key < 0:
+                negKey = key
+
         segment = BUFFER.get(lastSentPacket + 1)
         CLIENT_SOCKET.sendto(segment, hostInfo)
         if isRdtSend:
@@ -103,6 +109,12 @@ class Client:
                     if currentAckSeqNumber == maxSeqNumber:
                         temp = self.dumpPickle(EOF_data)
                         CLIENT_SOCKET.sendto(temp, hostInfo)
+                        negKey = None
+                        for key in BUFFER:
+                            # print(key)
+                            # print(values)
+                            if key < 0:
+                                negKey = key
                         thread_lock.release()
                         sent = True
                         self.getAndPrintTotoalTime(timerStart)
@@ -113,6 +125,12 @@ class Client:
                             lastAckPacket = lastAckPacket + 1
                             slidingWindow.remove(lastAckPacket)
                             BUFFER.pop(lastAckPacket)
+                            negKey = None
+                            for key in BUFFER:
+                                # print(key)
+                                # print(values)
+                                if key < 0:
+                                    negKey = key
                             while len(slidingWindow) < min(len(BUFFER), N):
                                 if lastSentPacket < maxSeqNumber:
                                     self.extractAndSend(True)
@@ -127,6 +145,12 @@ class Client:
                 if nackSeqNumber == temp:
                     self.setAlarmAndTimer()
                 packet = BUFFER.get(nackSeqNumber)
+                negKey = None
+                for key in BUFFER:
+                    # print(key)
+                    # print(values)
+                    if key < 0:
+                        negKey = key
                 CLIENT_SOCKET.sendto(packet, hostInfo)
                 thread_lock.release()
 
@@ -134,6 +158,12 @@ class Client:
     def rdt_send(self, N, SENDER_HOST, SENDER_PORT):
         global lastSentPacket, lastAckPacket, slidingWindow,BUFFER, timerStart
         buffSize = len(BUFFER)
+        negKey = None
+        for key in BUFFER:
+            # print(key)
+            # print(values)
+            if key < 0:
+                negKey = key
         timerStart = datetime.now()
         l = min(buffSize, N)
         while len(slidingWindow) < l:
@@ -177,6 +207,12 @@ if __name__ == "__main__":
                         chunk_checksum = client.calculateChecksum(str(chunk))
                         data = [sequenceNumber, chunk_checksum, TYPE_DATA, chunk]
                         BUFFER[sequenceNumber] = client.dumpPickle(data)
+                        negKey = None
+                        for key in BUFFER:
+                            # print(key)
+                            # print(values)
+                            if key < 0:
+                                negKey = key
                         sequenceNumber += 1
                     else:
                         break

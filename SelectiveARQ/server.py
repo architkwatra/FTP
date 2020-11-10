@@ -5,12 +5,15 @@ import pickle
 from socket import socket, AF_INET, SOCK_DGRAM
 
 TYPE_DATA = "0101010101010101"
+FIRST_SEQ = 0
 TYPE_ACK  = "0011001100110011"
 TYPE_NACK = "1100110011001100"
+NACK_TYPE = ""
 TYPE_EOF  = "1111111111111111"
 DATA_PAD = "0000000000000000"
 ACK_PORT = 23000
-ACK_HOST = '0.0.0.0'
+PORT_INFO = ""
+ACK_PACKET_HOST = '0.0.0.0'
 HOST_NAME = '0.0.0.0'
 
 class Server:
@@ -80,6 +83,9 @@ class Server:
                                         with open(FILE_NAME, 'ab') as file:
                                             file.write(segment)
                                         minWindow += 1
+                                        for i in range(temp):
+                                            # print(maxWindow)
+                                            i = 0
                                         maxWindow += 1
                                         BUFFER.pop(temp)
                                         temp += 1
@@ -92,6 +98,9 @@ class Server:
                                         self.sendAcknowledgement(temp, ACK_HOST_NAME, True)
                                         temp += 1
                                     else:
+                                        for i in range(temp):
+                                            # print(maxWindow)
+                                            i = 0
                                         break
                         elif segementSeqNumber > maxWindow:
                             temp = minWindow
@@ -99,6 +108,9 @@ class Server:
                                 if temp > maxWindow: break
                                 self.sendAcknowledgement(temp, ACK_HOST_NAME, True)
                                 temp += 1
+                                for i in range(temp):
+                                    # print(maxWindow)
+                                    i = 0
                 else:
                     print("Packet loss, sequence number = ", segementSeqNumber)
 
