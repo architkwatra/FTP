@@ -98,7 +98,6 @@ class Client:
             sequence_no, padding, type = reply
             if type == TYPE_ACK:
                 currentAckSeqNumber = reply[0] - 1
-                print ("Received ACK, sequence number = " + str(currentAckSeqNumber))
                 if lastAckPacket >= -1:
                     thread_lock.acquire()
                     if currentAckSeqNumber == maxSeqNumber:
@@ -124,7 +123,6 @@ class Client:
             elif type == TYPE_NACK:
                 thread_lock.acquire()
                 nackSeqNumber = reply[0]
-                print("Received NACK, sequence number = ", nackSeqNumber)
                 temp = lastAckPacket + 1
                 if nackSeqNumber == temp:
                     self.setAlarmAndTimer()
