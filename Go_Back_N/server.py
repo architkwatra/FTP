@@ -6,10 +6,15 @@ from socket import socket, AF_INET, SOCK_DGRAM
 
 TYPE_DATA = "0101010101010101"
 TYPE_EOF = "1111111111111111"
+TYPE_RESPONSE = ""
 ACK_HOST = '0.0.0.0'
 TYPE_ACK = "1010101010101010"
 ACK_PORT = 23000
 DATA_PAD = "0000000000000000"
+Data = []
+CUR_RTT_AVG = 0
+RTT = 0.1
+Final_RTT = 0
 
 class Server:
     def shift(self, num ,nBits, d = "l"):

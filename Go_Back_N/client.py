@@ -12,9 +12,13 @@ from collections import *
 TYPE_EOF = "1111111111111111"
 ACK_HOST = '0.0.0.0'
 TYPE_DATA = "0101010101010101"
+TYPE_RESPONSE = ""
 TYPE_ACK = "1010101010101010"
 ACK_PORT = 23000
+Data = []
+CUR_RTT_AVG = 0
 RTT = 0.1
+Final_RTT = 0
 
 SENDER_HOST = SENDER_PORT = ""
 maxSequenceNumber = 0
@@ -23,9 +27,14 @@ BUFFER = {}
 timerStart = timerEnd = 0
 slidingWindow = set()
 lastSentPacket = -1
+TYPE_ACK = "1010101010101010"
+ACK_PORT = 23000
+RTT = 0.1
 lock = Lock()
+rest = ""
 CLIENT_SOCKET = socket(AF_INET, SOCK_DGRAM)
 sent = False
+isServerReady = False
 EOF_data = ("0", "0", TYPE_EOF, "0")
 
 
