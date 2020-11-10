@@ -46,7 +46,6 @@ class Server:
         typee = TYPE_ACK if not isNegAck else TYPE_NACK
         self.handleSocketFn(pickle.dumps((ackNumber, DATA_PAD, typee)), ACK_HOST_NAME)
 
-    
 
     def runServer(self, LOSS_PROB, minWindow, maxWindow, BUFFER):
         completed=False
