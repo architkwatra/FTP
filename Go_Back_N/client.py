@@ -181,7 +181,7 @@ if __name__ == "__main__":
                     break
                 else:
                     maxSequenceNumber = sequenceNumber
-                    BUFFER[sequenceNumber] = dumpPickle([sequenceNumber, client.calculateChecksum(str(segment)), TYPE_DATA, segment])
+                    BUFFER[sequenceNumber] = dumpPickle()
                     sequenceNumber += 1
     except Exception as e:
         print(e)

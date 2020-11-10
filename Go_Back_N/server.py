@@ -58,7 +58,10 @@ class Server:
             receivedData, addr = SERVER_SOCKET.recvfrom(4096)
             ACK_HOST_NAME = addr[0]
             receivedData = pickle.loads(receivedData)
-            seqNumber, checksum, packetType, packetData = receivedData
+            seqNumber = receivedData[0]
+            checksum = receivedData[1]
+            packetType = receivedData[2]
+            packetData = receivedData[3]
 
             if packetType == TYPE_EOF:
                 done = True
@@ -69,7 +72,9 @@ class Server:
                 if randomNumber >= PACKET_LOSS_PROB:
                     authChecksum = self.calculateChecksum(str(packetData), checksum)
                     if authChecksum == 0:
-                        if seqNumber == lastRecPckt+1:
+                        temp = lastRecPckt+1
+                        # print(temp)
+                        if seqNumber == temp:
                             self.sendAcknowledgement(seqNumber+1, ACK_HOST_NAME)
                             lastRecPckt += 1
                             # a Opens a file for appending at the end of the file without 
