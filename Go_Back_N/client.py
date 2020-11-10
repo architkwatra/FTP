@@ -112,6 +112,7 @@ class Client:
         check = True
         hostInfo = (SENDER_HOST, SENDER_PORT)
         while check:
+            # print("here")
             reply = self.getReply(ACK_SOCKET)
             if reply[2] == TYPE_ACK:
                 # extracting the last packet seq that was delivered successfully
@@ -120,7 +121,7 @@ class Client:
                     lock.acquire()
                 # End of file
                 if curAckSeqNum == maxSequenceNumber:
-                    temp = dumpPickle(EOF_data)
+                    temp = pickle.dumps(EOF_data)
                     CLIENT_SOCKET.sendto(temp, hostInfo)
                     lock.release()
                     sent = True
@@ -181,13 +182,13 @@ if __name__ == "__main__":
                     break
                 else:
                     maxSequenceNumber = sequenceNumber
-                    BUFFER[sequenceNumber] = dumpPickle()
+                    data = [sequenceNumber, client.calculateChecksum(str(segment)), TYPE_DATA, segment]
+                    BUFFER[sequenceNumber] = dumpPickle(data)
                     sequenceNumber += 1
     except Exception as e:
         print(e)
         sys.exit("Failed to open file!")
 
-    
     signal(SIGALRM, client.handler)
     ack_thread = Thread(target = client.runThreadProcess, args = (N, SENDER_HOST, SENDER_PORT,))
     ack_thread.start()
