@@ -107,63 +107,77 @@ class Client:
     def extractAndSend(self, isRdtSend = False):
         global lastSentPacket, slidingWindow, BUFFER
         hostInfo = (SENDER_HOST, SENDER_PORT)
+        i = 0
+        j = -1
         segment = 0
         lastSentPacket += 1
         segment = BUFFER[lastSentPacket]
         CLIENT_SOCKET.sendto(segment, hostInfo)
         if isRdtSend:
             self.setAlarmAndTimer()
-        slidingWindow.add(lastSentPacket)
+        if len(slidingWindow) >= 0:
+            slidingWindow.add(lastSentPacket)
 
     def runThreadProcess(self, N, SENDER_HOST, SENDER_PORT):
         global EOF_data, lastAckPacket, lastSentPacket, sent, timerEnd, timerStart, slidingWindow, BUFFER
-        ACK_SOCKET = self.setSocket()
-        check = True
-        hostInfo = (SENDER_HOST, SENDER_PORT)
-        while check:
-            # print("here")
-            reply = self.getReply(ACK_SOCKET)
-            if reply[2] == TYPE_ACK:
-                # extracting the last packet seq that was delivered successfully
-                curAckSeqNum = reply[0] - 1
-                if lastAckPacket >= -1:
-                    lock.acquire()
-                # End of file
-                if curAckSeqNum == maxSequenceNumber:
-                    temp = pickle.dumps(EOF_data)
-                    CLIENT_SOCKET.sendto(temp, hostInfo)
-                    lock.release()
-                    sent = True
-                    self.getAndPrintTotoalTime(timerStart)
-                    check = False
-                    break
-                
-                elif curAckSeqNum > lastAckPacket:
-                    while lastAckPacket < curAckSeqNum:
-                        self.setAlarmAndTimer()
-                        lastAckPacket += 1
-                        self.deleteAck(lastAckPacket)
-                        while True:
-                            mVal = min(len(BUFFER), N)
-                            if mVal <= len(slidingWindow):
-                                break
-                            if lastSentPacket < maxSequenceNumber:
-                                self.extractAndSend(True)
-                                
-                    lock.release()
-                else:
-                    lock.release()
+        try:
+            ACK_SOCKET = self.setSocket()
+            check = True
+            hostInfo = (SENDER_HOST, SENDER_PORT)
+            while check:
+                # print("here")
+                reply = self.getReply(ACK_SOCKET)
+                if reply and reply[2] == TYPE_ACK:
+                    # extracting the last packet seq that was delivered successfully
+                    curAckSeqNum = reply[0] - 1
+                    if lastAckPacket >= -1:
+                        if lock:
+                            lock.acquire()
+                    # End of file
+                    if curAckSeqNum == maxSequenceNumber:
+                        temp = pickle.dumps(EOF_data)
+                        CLIENT_SOCKET.sendto(temp, hostInfo)
+                        if lock:
+                            lock.release()
+                        sent = True if not sent else False
+                        s = timerStart
+                        self.getAndPrintTotoalTime(s)
+                        check = False if check else False
+                        break
+                    
+                    elif curAckSeqNum > lastAckPacket:
+                        while lastAckPacket < curAckSeqNum:
+                            self.setAlarmAndTimer()
+                            lastAckPacket += 1
+                            self.deleteAck(lastAckPacket)
+                            while True:
+                                mVal = min(len(BUFFER), N) if BUFFER else N
+                                if mVal <= len(slidingWindow):
+                                    break
+                                if lastSentPacket < maxSequenceNumber:
+                                    self.extractAndSend(True)
+                        if lock:  
+                            lock.release()
+                    else:
+                        if lock:
+                            lock.release()
+        except Exception as e:
+            print(e)
                 
     def rdt_send(self, N, SENDER_HOST, SENDER_PORT):
         
         global lastSentPacket, lastAckPacket, slidingWindow, BUFFER, timerStart
-        # hostInfo = (SENDER_HOST, SENDER_PORT)
-        timerStart = datetime.now()
-        bufferSize = len(BUFFER)
-        l = min(bufferSize, N)
-        while len(slidingWindow) < l:
-            if lastAckPacket == -1:
-                self.extractAndSend(True)
+        try:
+            hostInfo = (SENDER_HOST, SENDER_PORT)
+            timerStart = datetime.now()
+            bufferSize = len(BUFFER) if BUFFER else 0
+            l = min(bufferSize, N)
+            m = min(len(slidingWindow), N)
+            while len(slidingWindow) < l:
+                if lastAckPacket == -1:
+                    self.extractAndSend(True)
+        except Exception as e:
+            print(e)
 
 if __name__ == "__main__":
 
@@ -177,12 +191,15 @@ if __name__ == "__main__":
 
     sequenceNumber = 0
     SENDER_HOST = sys.argv[1]
+    SENDER_INFO = []
     SENDER_PORT = int(sys.argv[2])
+    inc = 1
     FILE_NAME = sys.argv[3] 
     N = int(sys.argv[4])
     MSS = int(sys.argv[5])
     client = Client()
-    
+    l = len(BUFFER)
+    m = len(slidingWindow)
     try:
         with open(FILE_NAME, 'rb') as f:
             while True:
@@ -193,7 +210,7 @@ if __name__ == "__main__":
                     maxSequenceNumber = sequenceNumber
                     data = [sequenceNumber, client.calculateChecksum(str(segment)), TYPE_DATA, segment]
                     BUFFER[sequenceNumber] = dumpPickle(data)
-                    sequenceNumber += 1
+                    sequenceNumber += inc
     except Exception as e:
         print(e)
         sys.exit("Failed to open file!")

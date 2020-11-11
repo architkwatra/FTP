@@ -74,22 +74,24 @@ class Client:
 
     def extractAndSend(self, isRdtSend = False):
         global lastSentPacket, slidingWindow, BUFFER
-        
-        segment = 0
-        hostInfo = (SENDER_HOST, SENDER_PORT)
-        negKey = None
-        for key in BUFFER:
-            # print(key)
-            # print(values)
-            if key < 0:
-                negKey = key
+        try:
+            segment = 0
+            hostInfo = (SENDER_HOST, SENDER_PORT)
+            negKey = None
+            for key in BUFFER:
+                # print(key)
+                # print(values)
+                if key < 0:
+                    negKey = key
 
-        segment = BUFFER.get(lastSentPacket + 1)
-        CLIENT_SOCKET.sendto(segment, hostInfo)
-        if isRdtSend:
-            self.setAlarmAndTimer()
-        slidingWindow.add(lastSentPacket + 1)
-        lastSentPacket += 1
+            segment = BUFFER.get(lastSentPacket + 1)
+            CLIENT_SOCKET.sendto(segment, hostInfo)
+            if isRdtSend:
+                self.setAlarmAndTimer()
+            slidingWindow.add(lastSentPacket + 1)
+            lastSentPacket += 1
+        except Exception as e:
+            print(e)
 
     def dumpPickle(self, data):
         return pickle.dumps(data)
@@ -100,10 +102,10 @@ class Client:
         hostInfo = (SENDER_HOST, SENDER_PORT)
         while True:
             received_packet = ACK_SOCKET.recv(4096)
-            reply = pickle.loads(received_packet)
-            sequence_no, padding, type = reply
-            if type == TYPE_ACK:
-                currentAckSeqNumber = reply[0] - 1
+            reply = pickle.loads(received_packet) if received_packet else None
+            if reply[2] == TYPE_ACK:
+                currentAckSeqNumber = (reply[0] - 1) if len(reply) > 0 else -1
+                print("ACK recieved, sequence number = ", str(currentAckSeqNumber))
                 if lastAckPacket >= -1:
                     thread_lock.acquire()
                     if currentAckSeqNumber == maxSeqNumber:
@@ -123,8 +125,10 @@ class Client:
                         while lastAckPacket < currentAckSeqNumber:
                             self.setAlarmAndTimer()
                             lastAckPacket = lastAckPacket + 1
-                            slidingWindow.remove(lastAckPacket)
-                            BUFFER.pop(lastAckPacket)
+                            if len(slidingWindow) > 0:
+                                slidingWindow.remove(lastAckPacket)
+                            if len(BUFFER) > 0:
+                                BUFFER.pop(lastAckPacket)
                             negKey = None
                             for key in BUFFER:
                                 # print(key)
@@ -138,7 +142,8 @@ class Client:
                     else:
                         thread_lock.release()
 
-            elif type == TYPE_NACK:
+            elif reply[2] == TYPE_NACK:
+                print("NACK received, sequence number = ", reply[0])
                 thread_lock.acquire()
                 nackSeqNumber = reply[0]
                 temp = lastAckPacket + 1
